@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Belge Gönder">
+<meta name="theme-color" content="#16263d">
+<meta name="robots" content="noindex,nofollow">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<title>Belge Gönder</title>
+<style>
+:root{--bg:#f2f4f8;--card:#fff;--ink:#1d2433;--mute:#6b7385;--line:#e3e7ee;--pri:#1f4e79;--ok:#1a7f4b;--bad:#b3261e;--warn:#a86400}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 -apple-system,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+#app{max-width:640px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 10px) 14px calc(env(safe-area-inset-bottom) + 90px)}
+header{display:flex;align-items:center;gap:10px;margin:4px 0 14px}
+header h1{font-size:20px;margin:0;flex:1}
+header .who{font-size:13px;color:var(--mute)}
+button{font:inherit;border:0;border-radius:12px;padding:12px 16px;background:var(--pri);color:#fff;cursor:pointer}
+button.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+button.sm{padding:7px 12px;font-size:14px;border-radius:10px}
+button.ok{background:var(--ok)}button.bad{background:var(--bad)}
+button:disabled{opacity:.5}
+button.big{width:100%;font-size:18px;padding:18px;border-radius:16px;margin-bottom:16px;box-shadow:0 4px 14px rgba(31,78,121,.25)}
+input,select,textarea{font:inherit;font-size:16px;width:100%;padding:12px;border:1px solid #cfd5df;border-radius:12px;background:#fff;color:inherit}
+label{display:block;margin-bottom:12px}label>span{display:block;font-size:13px;color:var(--mute);margin-bottom:5px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+.item{display:flex;gap:12px;align-items:center;cursor:pointer}
+.thumb{width:62px;height:62px;border-radius:10px;background:#e8ecf2 center/cover no-repeat;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--mute);font-size:12px}
+.item .t{flex:1;min-width:0}.item .t b{display:block}.item .t div{font-size:13px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{display:inline-block;font-size:12px;padding:3px 9px;border-radius:20px;font-weight:600;white-space:nowrap}
+.b-yeni{background:#fff2dc;color:var(--warn)}.b-islendi{background:#e2f4ea;color:var(--ok)}.b-reddedildi{background:#fbe5e3;color:var(--bad)}
+.tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:12px}
+.tabs button{background:#fff;color:var(--ink);border:1px solid var(--line);padding:8px 14px;border-radius:20px;font-size:14px;white-space:nowrap}
+.tabs button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.chips button{background:#fff;color:var(--ink);border:1px solid var(--line);padding:9px 14px;border-radius:20px;font-size:15px}
+.chips button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+.photos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.photos .ph{aspect-ratio:1;border-radius:12px;background:#e8ecf2 center/cover no-repeat;position:relative;cursor:pointer}
+.photos .ph .x{position:absolute;top:-6px;right:-6px;width:26px;height:26px;border-radius:13px;background:#000a;color:#fff;font-size:14px;display:flex;align-items:center;justify-content:center;padding:0}
+.photos .pdf{display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--mute)}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.mute{color:var(--mute)}.small{font-size:13px}
+.kv{display:grid;grid-template-columns:110px 1fr;gap:6px 10px;font-size:15px}.kv div:nth-child(odd){color:var(--mute)}
+.msg{padding:9px 12px;border-radius:14px;margin-bottom:8px;max-width:85%;font-size:15px}
+.msg.me{background:#dbe8f6;margin-left:auto}.msg.they{background:#fff;border:1px solid var(--line)}
+.msg small{display:block;font-size:11px;color:var(--mute);margin-top:3px}
+.empty{text-align:center;color:var(--mute);padding:30px 10px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.hidden{display:none!important}
+#viewer{position:fixed;inset:0;background:#000;z-index:60;display:flex;align-items:center;justify-content:center}
+#viewer img{max-width:100%;max-height:100%;object-fit:contain}
+#viewer .c{position:absolute;top:calc(env(safe-area-inset-top) + 10px);right:12px;background:#fff3;color:#fff}
+#viewer .o{position:absolute;bottom:calc(env(safe-area-inset-bottom) + 14px);left:50%;transform:translateX(-50%);background:#fff3;color:#fff;text-decoration:none;padding:10px 16px;border-radius:12px}
+#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 24px);transform:translateX(-50%);background:#16263d;color:#fff;padding:12px 18px;border-radius:12px;opacity:0;transition:.25s;pointer-events:none;z-index:99;max-width:90%;text-align:center}
+#toast.on{opacity:1}
+.nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:8px 6px calc(env(safe-area-inset-bottom) + 8px);z-index:40}
+.nav button{background:none;color:var(--mute);padding:6px 10px;font-size:13px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.nav button.on{color:var(--pri);font-weight:600}.nav i{font-style:normal;font-size:20px}
+.login{max-width:380px;margin:12vh auto 0;text-align:center}.login img{width:84px;height:84px;border-radius:20px;margin-bottom:10px}
+.dot{display:inline-block;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--bad);color:#fff;font-size:12px;line-height:20px;text-align:center;font-weight:700}
+.spin{display:inline-block;width:16px;height:16px;border:2px solid #fff6;border-top-color:#fff;border-radius:50%;animation:s .8s linear infinite;vertical-align:-3px;margin-right:6px}
+@keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="viewer" class="hidden" onclick="if(event.target===this)closeViewer()"></div>
+<div id="toast"></div>
+<input type="file" id="camIn" accept="image/*" capture="environment" class="hidden" onchange="addFiles(this)">
+<input type="file" id="galIn" accept="image/*,application/pdf" multiple class="hidden" onchange="addFiles(this)">
+<script>
+/* ===== Yapılandırma ===== */
+const SB='https://mbogsyueflqzisohvajz.supabase.co';
+const AK='sb_publishable_QyBlzyNMAge9Ya8cOgeQDw_P3PmgESJ';
+const BK='belgeler', DOMAIN='@muhasebe.app';
+const TUR={fis:'Fiş',fatura:'Fatura',cek:'Çek',senet:'Senet',dekont:'Dekont',diger:'Diğer'};
+const DUR={yeni:'Bekliyor',islendi:'İşlendi',reddedildi:'Reddedildi'};
+
+/* ===== Yardımcılar ===== */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>(+n||0).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const today=()=>{const d=new Date();return new Date(d-d.getTimezoneOffset()*60000).toISOString().slice(0,10)};
+const fdate=d=>d?String(d).slice(0,10).split('-').reverse().join('.'):'';
+const fdt=d=>d?new Date(d).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+const num=v=>{v=String(v??'').trim().replace(/\s|₺/g,'');if(!v)return null;if(v.includes(','))v=v.replace(/\./g,'').replace(',','.');const n=parseFloat(v);return isNaN(n)?null:n};
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),2800)}
+
+/* ===== Supabase (SDK'sız, doğrudan REST) ===== */
+let SES=null;try{SES=JSON.parse(localStorage.getItem('bg_ses')||'null')}catch(_){}
+let ME=null;
+async function authReq(body,grant){
+ const r=await fetch(SB+'/auth/v1/token?grant_type='+grant,{method:'POST',headers:{apikey:AK,'Content-Type':'application/json'},body:JSON.stringify(body)});
+ const j=await r.json().catch(()=>({}));
+ if(!r.ok)throw new Error(j.error_code==='invalid_credentials'?'Kullanıcı adı veya şifre hatalı':(j.error_description||j.msg||'Giriş başarısız'));
+ j.expires_at=j.expires_at||Math.floor(Date.now()/1000)+j.expires_in;SES=j;localStorage.setItem('bg_ses',JSON.stringify(j));return j}
+async function token(){if(!SES)throw new Error('Oturum yok');
+ if(SES.expires_at-60<Date.now()/1000){try{await authReq({refresh_token:SES.refresh_token},'refresh_token')}catch(e){logout();throw new Error('Oturum süresi doldu, tekrar giriş yapın')}}
+ return SES.access_token}
+async function api(path,{method='GET',body,headers={},raw}={}){
+ const t=await token();
+ const r=await fetch(SB+path,{method,headers:{apikey:AK,Authorization:'Bearer '+t,...(body!==undefined&&!raw?{'Content-Type':'application/json'}:{}),...headers},body:raw?body:(body!==undefined?JSON.stringify(body):undefined)});
+ const txt=await r.text();let j=null;try{j=txt?JSON.parse(txt):null}catch(_){j=txt}
+ if(!r.ok)throw new Error((j&&(j.message||j.error||j.msg))||('Sunucu hatası '+r.status));return j}
+const rest=(q,o)=>api('/rest/v1/'+q,o);
+const URLC={};
+async function signed(paths){const need=paths.filter(p=>p&&!(URLC[p]&&URLC[p].exp>Date.now()));
+ if(need.length){const j=await api('/storage/v1/object/sign/'+BK,{method:'POST',body:{expiresIn:3600,paths:need}});(j||[]).forEach(x=>{if(x.signedURL)URLC[x.path]={u:SB+'/storage/v1'+x.signedURL,exp:Date.now()+3500e3}})}
+ return paths.map(p=>URLC[p]?URLC[p].u:null)}
+
+/* ===== Durum ===== */
+const V={view:'home',filter:'yeni',id:null};
+let LIST=[],DETAIL=null,COMMENTS=[],USERS=[],NEW=null,BUSY=false;
+const isAdmin=()=>ME&&ME.role==='admin';
+
+/* ===== Giriş ===== */
+function pLogin(){return `<div class="login"><img src="icon-192.png" alt=""><h1 style="margin:0 0 4px">Belge Gönder</h1><p class="mute" style="margin-top:0">Fiş, fatura ve çek fotoğraflarını muhasebeye iletin.</p>
+ <div class="card" style="text-align:left"><label><span>Kullanıcı adı</span><input id="lu" autocapitalize="none" autocorrect="off" autocomplete="username"></label>
+ <label><span>Şifre</span><input id="lp" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></label>
+ <button style="width:100%" id="lb" onclick="doLogin()">Giriş yap</button></div>
+ <p class="small mute">iPhone'da: Paylaş ⬆︎ → <b>Ana Ekrana Ekle</b> ile uygulama gibi kullanın.</p></div>`}
+async function doLogin(){const u=$('#lu').value.trim().toLowerCase(),p=$('#lp').value;if(!u||!p)return toast('Kullanıcı adı ve şifre girin');
+ $('#lb').disabled=true;$('#lb').innerHTML='<span class="spin"></span>Giriş yapılıyor';
+ try{await authReq({email:u.includes('@')?u:u+DOMAIN,password:p},'password');await loadMe();V.view='home';V.filter='yeni';await refresh()}
+ catch(e){toast(e.message);render()}}
+async function loadMe(){const r=await rest('profiles?select=*&id=eq.'+SES.user.id);ME=r&&r[0];if(!ME||!ME.active){const m=!ME?'Bu hesabın profili yok':'Hesabınız devre dışı';logout();throw new Error(m)}}
+function logout(){SES=null;ME=null;localStorage.removeItem('bg_ses');render()}
+
+/* ===== Veri ===== */
+async function refresh(){if(!ME)return render();
+ try{
+  let q='belgeler?select=*,profiles(display_name)&order=created_at.desc&limit=200';
+  if(isAdmin()&&V.filter!=='tum')q+='&durum=eq.'+V.filter;
+  if(!isAdmin())q+='&sender=eq.'+ME.id;
+  LIST=await rest(q);
+  const firsts=LIST.map(b=>b.fotograflar[0]).filter(p=>p&&!/\.pdf$/i.test(p));if(firsts.length)await signed(firsts);
+ }catch(e){toast(e.message)}
+ render()}
+async function pendingCount(){try{const t=await token();const r=await fetch(SB+'/rest/v1/belgeler?select=id&durum=eq.yeni',{method:'HEAD',headers:{apikey:AK,Authorization:'Bearer '+t,Prefer:'count=exact'}});const cr=r.headers.get('content-range')||'';return +(cr.split('/')[1]||0)}catch(_){return 0}}
+
+/* ===== Görünümler ===== */
+function render(){
+ const a=$('#app');
+ if(!SES||!ME){a.innerHTML=pLogin();return}
+ const P={home:pHome,new:pNew,detail:pDetail,users:pUsers,settings:pSettings}[V.view]||pHome;
+ a.innerHTML=P()+nav();
+}
+function nav(){if(V.view==='new'||V.view==='detail')return '';const b=(v,i,l)=>`<button class="${V.view===v?'on':''}" onclick="go('${v}')"><i>${i}</i>${l}</button>`;
+ return `<div class="nav">${b('home','🗂',isAdmin()?'Gelen kutusu':'Gönderilerim')}${`<button onclick="startNew()"><i>📷</i>Gönder</button>`}${isAdmin()?b('users','👥','Kullanıcılar'):''}${b('settings','⚙︎','Ayarlar')}</div>`}
+async function go(v){V.view=v;if(v==='home')await refresh();else if(v==='users')await loadUsers();else render();window.scrollTo(0,0)}
+function head(t,back){return `<header>${back?`<button class="ghost sm" onclick="go('home')">‹ Geri</button>`:''}<h1>${t}</h1><span class="who">${esc(ME.display_name)}</span></header>`}
+function card(b){const p=b.fotograflar[0],u=p&&URLC[p]?URLC[p].u:null;
+ return `<div class="card item" onclick="openDetail(${b.id})"><div class="thumb" style="${u?`background-image:url('${u}')`:''}">${u?'':(p?'PDF':'—')}</div>
+ <div class="t"><b>${TUR[b.tur]}${b.tutar!=null?' · '+fmt(b.tutar)+' ₺':''}</b><div>${isAdmin()?esc(b.profiles?.display_name||'')+' · ':''}${fdt(b.created_at)}${b.aciklama?' · '+esc(b.aciklama):''}</div></div>
+ <span class="badge b-${b.durum}">${DUR[b.durum]}</span></div>`}
+function pHome(){
+ const tabs=isAdmin()?`<div class="tabs">${[['yeni','Bekleyen'],['islendi','İşlenen'],['reddedildi','Reddedilen'],['tum','Tümü']].map(([k,l])=>`<button class="${V.filter===k?'on':''}" onclick="V.filter='${k}';refresh()">${l}</button>`).join('')}</div>`:'';
+ return head(isAdmin()?'Gelen kutusu':'Belge Gönder')+`<button class="big" onclick="startNew()">📷 Yeni belge gönder</button>${tabs}
+ <div class="bar" style="margin:0 0 10px"><span class="small mute" style="flex:1">${LIST.length} kayıt</span><button class="ghost sm" onclick="refresh()">↻ Yenile</button></div>
+ ${LIST.length?LIST.map(card).join(''):`<div class="empty">${isAdmin()?'Bu listede belge yok.':'Henüz belge göndermediniz.'}</div>`}`}
+
+/* ----- Yeni gönderi ----- */
+function startNew(){NEW={files:[],tur:'fis',tutar:'',tarih:today(),aciklama:''};V.view='new';render();window.scrollTo(0,0)}
+async function addFiles(inp){const fs=[...inp.files];inp.value='';for(const f of fs){if(NEW.files.length>=8){toast('En fazla 8 dosya');break}NEW.files.push({f,url:f.type.startsWith('image/')?URL.createObjectURL(f):null})}render()}
+function pNew(){const n=NEW;
+ return head('Yeni belge',true)+`<div class="card">
+ <div class="photos">${n.files.map((x,i)=>`<div class="ph ${x.url?'':'pdf'}" style="${x.url?`background-image:url('${x.url}')`:''}">${x.url?'':'PDF'}<button class="x" onclick="NEW.files.splice(${i},1);render()">✕</button></div>`).join('')}</div>
+ <div class="row" style="margin-bottom:14px"><button onclick="$('#camIn').click()">📷 Fotoğraf çek</button><button class="ghost" onclick="$('#galIn').click()">🖼 Galeriden</button></div>
+ <span class="small mute">Belge türü</span><div class="chips" style="margin-top:6px">${Object.entries(TUR).map(([k,l])=>`<button class="${n.tur===k?'on':''}" onclick="NEW.tur='${k}';render()">${l}</button>`).join('')}</div>
+ <div class="row"><label><span>Tutar (₺, isteğe bağlı)</span><input inputmode="decimal" value="${esc(n.tutar)}" oninput="NEW.tutar=this.value" placeholder="0,00"></label>
+ <label><span>Belge tarihi</span><input type="date" value="${n.tarih}" oninput="NEW.tarih=this.value"></label></div>
+ <label><span>Açıklama (ne için, kimden?)</span><textarea rows="3" oninput="NEW.aciklama=this.value" placeholder="Örn. Şantiye için çimento, Akdeniz Toptan">${esc(n.aciklama)}</textarea></label>
+ <button style="width:100%" id="sendBtn" onclick="sendNew()" ${BUSY?'disabled':''}>${BUSY?'<span class="spin"></span>Gönderiliyor…':'Muhasebeye gönder'}</button></div>`}
+async function shrink(file){
+ if(!file.type.startsWith('image/'))return file;
+ try{const url=URL.createObjectURL(file);const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url});
+  const M=1800;let w=img.naturalWidth,h=img.naturalHeight;const s=Math.min(1,M/Math.max(w,h));w=Math.round(w*s);h=Math.round(h*s);
+  const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,w,h);x.drawImage(img,0,0,w,h);URL.revokeObjectURL(url);
+  const b=await new Promise(r=>c.toBlob(r,'image/jpeg',0.82));return b||file}catch(_){return file}}
+async function sendNew(){const n=NEW;if(BUSY)return;
+ if(!n.files.length)return toast('En az bir fotoğraf ekleyin');
+ BUSY=true;render();const btn=$('#sendBtn');
+ try{const paths=[];
+  for(let i=0;i<n.files.length;i++){if(btn)btn.innerHTML=`<span class="spin"></span>Yükleniyor ${i+1}/${n.files.length}`;
+   const b=await shrink(n.files[i].f);const ext=b.type==='application/pdf'?'pdf':(b.type==='image/png'?'png':'jpg');
+   const path=`${ME.id}/${Date.now()}-${i}-${Math.random().toString(36).slice(2,7)}.${ext}`;
+   await api('/storage/v1/object/'+BK+'/'+path,{method:'POST',raw:true,body:b,headers:{'Content-Type':b.type||'image/jpeg'}});paths.push(path)}
+  await rest('belgeler',{method:'POST',body:{tur:n.tur,tutar:num(n.tutar),belge_tarihi:n.tarih||null,aciklama:n.aciklama.trim()||null,fotograflar:paths},headers:{Prefer:'return=minimal'}});
+  n.files.forEach(x=>x.url&&URL.revokeObjectURL(x.url));NEW=null;BUSY=false;toast('Gönderildi ✓');V.view='home';V.filter=isAdmin()?'yeni':V.filter;await refresh()}
+ catch(e){BUSY=false;render();toast('Gönderilemedi: '+e.message)}}
+
+/* ----- Detay ----- */
+async function openDetail(id){try{
+ const r=await rest('belgeler?select=*,profiles(display_name)&id=eq.'+id);DETAIL=r[0];if(!DETAIL)return toast('Bulunamadı');
+ await signed(DETAIL.fotograflar);COMMENTS=await rest('yorumlar?select=*,profiles(display_name)&belge_id=eq.'+id+'&order=created_at');
+ V.view='detail';V.id=id;render();window.scrollTo(0,0)}catch(e){toast(e.message)}}
+function pDetail(){const b=DETAIL;
+ return head(TUR[b.tur],true)+`<div class="card"><div class="photos">${b.fotograflar.map(p=>{const u=URLC[p]&&URLC[p].u,pdf=/\.pdf$/i.test(p);return `<div class="ph ${pdf?'pdf':''}" style="${!pdf&&u?`background-image:url('${u}')`:''}" onclick="view('${p}')">${pdf?'PDF':''}</div>`}).join('')}</div>
+ <div class="kv"><div>Durum</div><div><span class="badge b-${b.durum}">${DUR[b.durum]}</span>${b.islenme_tarihi?` <span class="small mute">${fdt(b.islenme_tarihi)}</span>`:''}</div>
+ ${isAdmin()?`<div>Gönderen</div><div>${esc(b.profiles?.display_name)}</div>`:''}
+ <div>Gönderim</div><div>${fdt(b.created_at)}</div>${b.belge_tarihi?`<div>Belge tarihi</div><div>${fdate(b.belge_tarihi)}</div>`:''}
+ ${b.tutar!=null?`<div>Tutar</div><div><b>${fmt(b.tutar)} ₺</b></div>`:''}${b.aciklama?`<div>Açıklama</div><div>${esc(b.aciklama)}</div>`:''}
+ ${b.islem_notu?`<div>Muhasebe notu</div><div>${esc(b.islem_notu)}</div>`:''}</div>
+ ${isAdmin()?`<div class="bar">${b.durum!=='islendi'?`<button class="ok sm" onclick="setStatus('islendi')">✓ İşlendi</button>`:''}${b.durum!=='reddedildi'?`<button class="bad sm" onclick="setStatus('reddedildi')">Reddet</button>`:''}${b.durum!=='yeni'?`<button class="ghost sm" onclick="setStatus('yeni')">Bekleyene al</button>`:''}</div>`:''}
+ ${(!isAdmin()&&b.durum==='yeni')||isAdmin()?`<div class="bar"><button class="ghost sm" style="color:var(--bad)" onclick="delBelge()">Sil</button></div>`:''}</div>
+ <h3 style="margin:18px 0 8px">Mesajlar</h3>
+ <div>${COMMENTS.map(c=>`<div class="msg ${c.author===ME.id?'me':'they'}">${esc(c.metin)}<small>${esc(c.profiles?.display_name||'')} · ${fdt(c.created_at)}</small></div>`).join('')||'<p class="small mute">Henüz mesaj yok. Soru veya not yazabilirsiniz.</p>'}</div>
+ <div class="row" style="margin-top:8px"><input id="cm" placeholder="Mesaj yazın…" onkeydown="if(event.key==='Enter')sendComment()"><button style="flex:0 0 auto" onclick="sendComment()">Gönder</button></div>`}
+function view(p){const u=URLC[p]&&URLC[p].u;if(!u)return;if(/\.pdf$/i.test(p)){window.open(u,'_blank');return}
+ const v=$('#viewer');v.innerHTML=`<img src="${u}" alt=""><button class="c" onclick="closeViewer()">✕ Kapat</button><a class="o" href="${u}" target="_blank" rel="noopener">Tam boyut aç</a>`;v.classList.remove('hidden')}
+function closeViewer(){const v=$('#viewer');v.classList.add('hidden');v.innerHTML=''}
+async function setStatus(s){let note=DETAIL.islem_notu||null;if(s==='reddedildi'){const n=prompt('Red nedeni (gönderen görür):',note||'');if(n===null)return;note=n||null}
+ try{await rest('belgeler?id=eq.'+DETAIL.id,{method:'PATCH',body:{durum:s,islenme_tarihi:s==='yeni'?null:new Date().toISOString(),islem_notu:note},headers:{Prefer:'return=minimal'}});toast(DUR[s]);await openDetail(DETAIL.id)}catch(e){toast(e.message)}}
+async function delBelge(){if(!confirm('Bu gönderi silinsin mi?'))return;try{if(isAdmin()&&DETAIL.fotograflar.length)await api('/storage/v1/object/'+BK,{method:'DELETE',body:{prefixes:DETAIL.fotograflar}}).catch(()=>{});await rest('belgeler?id=eq.'+DETAIL.id,{method:'DELETE'});toast('Silindi');go('home')}catch(e){toast(e.message)}}
+async function sendComment(){const i=$('#cm'),t=i.value.trim();if(!t)return;i.disabled=true;try{await rest('yorumlar',{method:'POST',body:{belge_id:DETAIL.id,metin:t},headers:{Prefer:'return=minimal'}});await openDetail(DETAIL.id)}catch(e){toast(e.message);i.disabled=false}}
+
+/* ----- Kullanıcılar (yalnızca yönetici) ----- */
+async function loadUsers(){try{USERS=await rest('profiles?select=*&order=created_at')}catch(e){toast(e.message)}render()}
+const genPw=()=>{const a='abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';const r=crypto.getRandomValues(new Uint32Array(10));return [...r].map(x=>a[x%a.length]).join('')};
+function pUsers(){return head('Kullanıcılar')+`<div class="card"><b>Yeni kullanıcı</b><p class="small mute" style="margin:4px 0 10px">Gönderici yalnızca belge gönderebilir ve kendi gönderilerini görür. Muhasebe programına erişimi yoktur.</p>
+ <label><span>Ad Soyad</span><input id="nuD"></label><label><span>Kullanıcı adı (küçük harf, örn. ali.yilmaz)</span><input id="nuU" autocapitalize="none" autocorrect="off"></label>
+ <label><span>Şifre</span><input id="nuP" value="${genPw()}"></label><button onclick="addUser()">Kullanıcı ekle</button></div>
+ ${USERS.map(u=>`<div class="card"><div class="item" style="cursor:default"><div class="t"><b>${esc(u.display_name)}${u.id===ME.id?' (siz)':''}</b><div>${esc(u.username)} · ${u.role==='admin'?'Yönetici':'Gönderici'}${u.active?'':' · <span style="color:var(--bad)">devre dışı</span>'}</div></div></div>
+ ${u.id!==ME.id?`<div class="bar"><button class="ghost sm" onclick="resetPw('${u.id}','${esc(u.display_name)}')">Şifre belirle</button><button class="ghost sm" onclick="toggleUser('${u.id}',${!u.active})">${u.active?'Devre dışı bırak':'Etkinleştir'}</button></div>`:''}</div>`).join('')}`}
+async function addUser(){const d=$('#nuD').value.trim(),u=$('#nuU').value.trim().toLowerCase(),p=$('#nuP').value;if(!d||!u)return toast('Ad ve kullanıcı adı girin');
+ try{await rest('rpc/admin_kullanici_ekle',{method:'POST',body:{p_username:u,p_display:d,p_password:p,p_role:'gonderici'}});alert(`Kullanıcı eklendi.\n\nKullanıcı adı: ${u}\nŞifre: ${p}\n\nBu bilgileri kişiye iletin.`);await loadUsers()}catch(e){toast(e.message)}}
+async function resetPw(id,name){const p=prompt(name+' için yeni şifre (en az 8 karakter):',genPw());if(!p)return;try{await rest('rpc/admin_sifre_belirle',{method:'POST',body:{p_user:id,p_password:p}});alert('Yeni şifre: '+p)}catch(e){toast(e.message)}}
+async function toggleUser(id,act){try{await rest('profiles?id=eq.'+id,{method:'PATCH',body:{active:act},headers:{Prefer:'return=minimal'}});await loadUsers()}catch(e){toast(e.message)}}
+
+/* ----- Ayarlar ----- */
+function pSettings(){return head('Ayarlar')+`<div class="card"><div class="kv"><div>Ad</div><div>${esc(ME.display_name)}</div><div>Kullanıcı adı</div><div>${esc(ME.username)}</div><div>Yetki</div><div>${isAdmin()?'Yönetici':'Gönderici'}</div></div></div>
+ <div class="card"><b>Şifre değiştir</b><label style="margin-top:10px"><span>Yeni şifre (en az 8 karakter)</span><input id="np" type="password" autocomplete="new-password"></label><button onclick="changePw()">Kaydet</button></div>
+ <div class="card small mute">Uygulama gibi kullanmak için iPhone'da Safari'de bu sayfayı açın → Paylaş ⬆︎ → <b>Ana Ekrana Ekle</b>.</div>
+ <button class="ghost" style="width:100%" onclick="logout()">Çıkış yap</button>`}
+async function changePw(){const p=$('#np').value;if(p.length<8)return toast('En az 8 karakter');try{await api('/auth/v1/user',{method:'PUT',body:{password:p}});toast('Şifre değiştirildi');$('#np').value=''}catch(e){toast(e.message)}}
+
+/* ===== Başlat ===== */
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&ME&&V.view==='home')refresh()});
+if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+(async()=>{render();if(SES){try{await loadMe();await refresh()}catch(e){toast(e.message);render()}}})();
+</script>
+</body>
+</html>
