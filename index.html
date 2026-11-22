@@ -74,7 +74,8 @@ label{display:block;margin-bottom:12px}label>span{display:block;font-size:13px;c
 <div id="viewer" class="hidden" onclick="if(event.target===this)closeViewer()"></div>
 <div id="toast"></div>
 <input type="file" id="camIn" accept="image/*" capture="environment" class="hidden" onchange="addFiles(this)">
-<input type="file" id="galIn" accept="image/*,application/pdf" multiple class="hidden" onchange="addFiles(this)">
+<input type="file" id="galIn" accept="image/*" multiple class="hidden" onchange="addFiles(this)">
+<input type="file" id="fileIn" multiple class="hidden" onchange="addFiles(this)">
 <script>
 /* ===== Yapılandırma ===== */
 const SB='https://mbogsyueflqzisohvajz.supabase.co';
@@ -82,6 +83,8 @@ const AK='sb_publishable_QyBlzyNMAge9Ya8cOgeQDw_P3PmgESJ';
 const BK='belgeler', DOMAIN='@muhasebe.app';
 const TUR={fis:'Fiş',fatura:'Fatura',cek:'Çek',senet:'Senet',dekont:'Dekont',diger:'Diğer'};
 const DUR={yeni:'Bekliyor',islendi:'İşlendi',reddedildi:'Reddedildi'};
+const KAT={santiye:'Şantiye',cek_senet:'Çek / Senet',genel_gider:'Genel gider',diger:'Diğer'};
+const KATI={santiye:'🏗',cek_senet:'🧾',genel_gider:'🏢',diger:'📎'};
 
 /* ===== Yardımcılar ===== */
 const $=s=>document.querySelector(s);
@@ -90,11 +93,18 @@ const fmt=n=>(+n||0).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFrac
 const today=()=>{const d=new Date();return new Date(d-d.getTimezoneOffset()*60000).toISOString().slice(0,10)};
 const fdate=d=>d?String(d).slice(0,10).split('-').reverse().join('.'):'';
 const fdt=d=>d?new Date(d).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
-const num=v=>{v=String(v??'').trim().replace(/\s|₺/g,'');if(!v)return null;if(v.includes(','))v=v.replace(/\./g,'').replace(',','.');const n=parseFloat(v);return isNaN(n)?null:n};
+const num=v=>{v=String(v??'').trim().replace(/\s|₺/g,'');if(!v)return null;if(v.includes(','))v=v.replace(/\./g,'').replace(',','.');else if(/^\d{1,3}(\.\d{3})+$/.test(v))v=v.replace(/\./g,'');const n=parseFloat(v);return isNaN(n)?null:n};
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),2800)}
 
 /* ===== Supabase (SDK'sız, doğrudan REST) ===== */
 let SES=null;try{SES=JSON.parse(localStorage.getItem('bg_ses')||'null')}catch(_){}
+let DEV=null;try{DEV=JSON.parse(localStorage.getItem('bg_dev')||'null')}catch(_){}
+const BASE=location.origin+location.pathname;
+const CODE=(new URLSearchParams(location.search).get('davet')||'').replace(/[^A-Za-z0-9]/g,'').toUpperCase();
+const IS_IOS=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const STANDALONE=!!(navigator.standalone||(window.matchMedia&&matchMedia('(display-mode: standalone)').matches));
+if(CODE&&!DEV){try{const m={name:'Belge Gönder',short_name:'Belge Gönder',start_url:BASE+'?davet='+CODE,scope:BASE,display:'standalone',background_color:'#f2f4f8',theme_color:'#16263d',lang:'tr',icons:[{src:BASE+'icon-192.png',sizes:'192x192',type:'image/png'},{src:BASE+'icon-512.png',sizes:'512x512',type:'image/png'}]};
+ document.querySelector('link[rel=manifest]').href='data:application/manifest+json,'+encodeURIComponent(JSON.stringify(m))}catch(_){}}
 let ME=null;
 async function authReq(body,grant){
  const r=await fetch(SB+'/auth/v1/token?grant_type='+grant,{method:'POST',headers:{apikey:AK,'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -102,8 +112,17 @@ async function authReq(body,grant){
  if(!r.ok)throw new Error(j.error_code==='invalid_credentials'?'Kullanıcı adı veya şifre hatalı':(j.error_description||j.msg||'Giriş başarısız'));
  j.expires_at=j.expires_at||Math.floor(Date.now()/1000)+j.expires_in;SES=j;localStorage.setItem('bg_ses',JSON.stringify(j));return j}
 async function token(){if(!SES)throw new Error('Oturum yok');
- if(SES.expires_at-60<Date.now()/1000){try{await authReq({refresh_token:SES.refresh_token},'refresh_token')}catch(e){logout();throw new Error('Oturum süresi doldu, tekrar giriş yapın')}}
+ if(SES.expires_at-60<Date.now()/1000){try{await authReq({refresh_token:SES.refresh_token},'refresh_token')}catch(e){if(DEV&&await devLogin())return SES.access_token;logout();throw new Error('Oturum süresi doldu, tekrar giriş yapın')}}
  return SES.access_token}
+async function devLogin(){try{await authReq({email:DEV.email,password:DEV.secret},'password');return true}catch(e){return false}}
+async function redeem(code){
+ const a=crypto.getRandomValues(new Uint8Array(32)),secret=[...a].map(x=>x.toString(16).padStart(2,'0')).join('');
+ const r=await fetch(SB+'/rest/v1/rpc/davet_kullan',{method:'POST',headers:{apikey:AK,'Content-Type':'application/json'},body:JSON.stringify({p_kod:code,p_secret:secret})});
+ const j=await r.json().catch(()=>null);if(!r.ok)throw new Error((j&&j.message)||'Davet kodu kullanılamadı');
+ DEV={email:j,secret};localStorage.setItem('bg_dev',JSON.stringify(DEV));
+ await authReq({email:DEV.email,password:secret},'password');try{history.replaceState(null,'',BASE)}catch(_){}}
+async function useCode(code){code=(code||'').replace(/[^A-Za-z0-9]/g,'').toUpperCase();if(code.length<8)return toast('Davet kodunu eksiksiz girin');
+ BOOT='kod';render();try{await redeem(code);await loadMe();V.view='home';await refresh();toast('Hoş geldiniz, '+ME.display_name)}catch(e){BOOT='';toast(e.message);render()}}
 async function api(path,{method='GET',body,headers={},raw}={}){
  const t=await token();
  const r=await fetch(SB+path,{method,headers:{apikey:AK,Authorization:'Bearer '+t,...(body!==undefined&&!raw?{'Content-Type':'application/json'}:{}),...headers},body:raw?body:(body!==undefined?JSON.stringify(body):undefined)});
@@ -115,32 +134,49 @@ async function signed(paths){const need=paths.filter(p=>p&&!(URLC[p]&&URLC[p].ex
  if(need.length){const j=await api('/storage/v1/object/sign/'+BK,{method:'POST',body:{expiresIn:3600,paths:need}});(j||[]).forEach(x=>{if(x.signedURL)URLC[x.path]={u:SB+'/storage/v1'+x.signedURL,exp:Date.now()+3500e3}})}
  return paths.map(p=>URLC[p]?URLC[p].u:null)}
 
+const isImg=p=>/\.(jpe?g|png|webp|gif|heic|heif)$/i.test(p||'');
+const extOf=n=>{const m=/\.([A-Za-z0-9]{1,6})$/.exec(n||'');return m?m[1].toLowerCase():''};
+const fname=p=>{const b=String(p||'').split('/').pop();return b.replace(/^\d+-\d+-[a-z0-9]{5}-/,'')};
 /* ===== Durum ===== */
 const V={view:'home',filter:'yeni',id:null};
-let LIST=[],DETAIL=null,COMMENTS=[],USERS=[],NEW=null,BUSY=false;
+let LIST=[],DETAIL=null,COMMENTS=[],USERS=[],NEW=null,BUSY=false,SANT=[];
+V.kat='';V.sid='';
 const isAdmin=()=>ME&&ME.role==='admin';
 
 /* ===== Giriş ===== */
-function pLogin(){return `<div class="login"><img src="icon-192.png" alt=""><h1 style="margin:0 0 4px">Belge Gönder</h1><p class="mute" style="margin-top:0">Fiş, fatura ve çek fotoğraflarını muhasebeye iletin.</p>
- <div class="card" style="text-align:left"><label><span>Kullanıcı adı</span><input id="lu" autocapitalize="none" autocorrect="off" autocomplete="username"></label>
+let SHOW_ADMIN=false,BOOT='';
+function pLogin(){const logo=`<img src="icon-192.png" alt=""><h1 style="margin:0 0 4px">Belge Gönder</h1>`;
+ if(BOOT)return `<div class="login">${logo}<p class="mute"><span class="spin" style="border-color:#1f4e7955;border-top-color:#1f4e79"></span>${BOOT==='kod'?'Telefon kaydediliyor…':'Açılıyor…'}</p></div>`;
+ if(CODE&&IS_IOS&&!STANDALONE)return `<div class="login">${logo}
+ <div class="card" style="text-align:left"><b>Son bir adım: uygulamayı ana ekrana ekleyin</b>
+ <ol style="padding-left:20px;margin:10px 0;line-height:1.7"><li>Aşağıdaki <b>Paylaş</b> ⬆︎ düğmesine dokunun.</li><li><b>Ana Ekrana Ekle</b>'yi seçin, sonra <b>Ekle</b>'ye dokunun.</li><li>Ana ekrandaki <b>Belge Gönder</b> ikonundan açın.</li></ol>
+ <p class="small mute" style="margin:0">Uygulama ilk açılışta telefonunuzu otomatik tanır; şifre gerekmez. Bu sayfayı Safari'de açtığınızdan emin olun.</p></div>
+ <p class="small mute">Davet kodunuz: <b style="letter-spacing:1px">${CODE.slice(0,5)}-${CODE.slice(5)}</b></p>
+ <button class="ghost sm" onclick="if(confirm('Kod bu tarayıcıda kullanılırsa ana ekrandaki uygulamada tekrar kullanılamaz. Devam edilsin mi?'))useCode(CODE)">Ana ekrana eklemeden burada kullan</button></div>`;
+ return `<div class="login">${logo}
+ <div class="card" style="text-align:left"><b>Davet kodunu girin</b><p class="small mute" style="margin:6px 0 10px">Yöneticinin gönderdiği linke dokunursanız kod otomatik girilir. Kod tek kullanımlıktır; bir kez girildikten sonra bu telefon kalıcı olarak tanınır.</p>
+ <input id="dk" placeholder="ABCDE-12345" autocapitalize="characters" autocorrect="off" style="letter-spacing:2px;text-transform:uppercase" onkeydown="if(event.key==='Enter')useCode(this.value)">
+ <button style="width:100%;margin-top:10px" onclick="useCode($('#dk').value)">Başla</button></div>
+ ${SHOW_ADMIN?`<div class="card" style="text-align:left">`:`<button class="ghost sm" onclick="SHOW_ADMIN=true;render()">Yönetici girişi</button>`}
+ ${SHOW_ADMIN?`<label><span>Kullanıcı adı</span><input id="lu" autocapitalize="none" autocorrect="off" autocomplete="username"></label>
  <label><span>Şifre</span><input id="lp" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></label>
- <button style="width:100%" id="lb" onclick="doLogin()">Giriş yap</button></div>
- <p class="small mute">iPhone'da: Paylaş ⬆︎ → <b>Ana Ekrana Ekle</b> ile uygulama gibi kullanın.</p></div>`}
+ <button style="width:100%" id="lb" onclick="doLogin()">Giriş yap</button></div>`:''}</div>`}
 async function doLogin(){const u=$('#lu').value.trim().toLowerCase(),p=$('#lp').value;if(!u||!p)return toast('Kullanıcı adı ve şifre girin');
  $('#lb').disabled=true;$('#lb').innerHTML='<span class="spin"></span>Giriş yapılıyor';
- try{await authReq({email:u.includes('@')?u:u+DOMAIN,password:p},'password');await loadMe();V.view='home';V.filter='yeni';await refresh()}
+ try{DEV=null;localStorage.removeItem('bg_dev');await authReq({email:u.includes('@')?u:u+DOMAIN,password:p},'password');await loadMe();V.view='home';V.filter='yeni';await refresh()}
  catch(e){toast(e.message);render()}}
-async function loadMe(){const r=await rest('profiles?select=*&id=eq.'+SES.user.id);ME=r&&r[0];if(!ME||!ME.active){const m=!ME?'Bu hesabın profili yok':'Hesabınız devre dışı';logout();throw new Error(m)}}
+async function loadMe(){const r=await rest('profiles?select=*&id=eq.'+SES.user.id);ME=r&&r[0];if(ME)SANT=await rest('santiyeler?select=*&order=ad').catch(()=>[]);if(!ME||!ME.active){const m=!ME?'Bu hesabın profili yok':'Hesabınız devre dışı';logout();throw new Error(m)}}
 function logout(){SES=null;ME=null;localStorage.removeItem('bg_ses');render()}
 
 /* ===== Veri ===== */
 async function refresh(){if(!ME)return render();
  try{
-  let q='belgeler?select=*,profiles(display_name)&order=created_at.desc&limit=200';
+  let q='belgeler?select=*,profiles(display_name),santiyeler(ad)&order=created_at.desc&limit=200';
   if(isAdmin()&&V.filter!=='tum')q+='&durum=eq.'+V.filter;
+  if(isAdmin()&&V.kat)q+='&kategori=eq.'+V.kat;if(isAdmin()&&V.sid)q+='&santiye_id=eq.'+V.sid;
   if(!isAdmin())q+='&sender=eq.'+ME.id;
   LIST=await rest(q);
-  const firsts=LIST.map(b=>b.fotograflar[0]).filter(p=>p&&!/\.pdf$/i.test(p));if(firsts.length)await signed(firsts);
+  const firsts=LIST.map(b=>b.fotograflar.find(isImg)).filter(Boolean);if(firsts.length)await signed(firsts);
  }catch(e){toast(e.message)}
  render()}
 async function pendingCount(){try{const t=await token();const r=await fetch(SB+'/rest/v1/belgeler?select=id&durum=eq.yeni',{method:'HEAD',headers:{apikey:AK,Authorization:'Bearer '+t,Prefer:'count=exact'}});const cr=r.headers.get('content-range')||'';return +(cr.split('/')[1]||0)}catch(_){return 0}}
@@ -156,55 +192,64 @@ function nav(){if(V.view==='new'||V.view==='detail')return '';const b=(v,i,l)=>`
  return `<div class="nav">${b('home','🗂',isAdmin()?'Gelen kutusu':'Gönderilerim')}${`<button onclick="startNew()"><i>📷</i>Gönder</button>`}${isAdmin()?b('users','👥','Kullanıcılar'):''}${b('settings','⚙︎','Ayarlar')}</div>`}
 async function go(v){V.view=v;if(v==='home')await refresh();else if(v==='users')await loadUsers();else render();window.scrollTo(0,0)}
 function head(t,back){return `<header>${back?`<button class="ghost sm" onclick="go('home')">‹ Geri</button>`:''}<h1>${t}</h1><span class="who">${esc(ME.display_name)}</span></header>`}
-function card(b){const p=b.fotograflar[0],u=p&&URLC[p]?URLC[p].u:null;
- return `<div class="card item" onclick="openDetail(${b.id})"><div class="thumb" style="${u?`background-image:url('${u}')`:''}">${u?'':(p?'PDF':'—')}</div>
- <div class="t"><b>${TUR[b.tur]}${b.tutar!=null?' · '+fmt(b.tutar)+' ₺':''}</b><div>${isAdmin()?esc(b.profiles?.display_name||'')+' · ':''}${fdt(b.created_at)}${b.aciklama?' · '+esc(b.aciklama):''}</div></div>
+function card(b){const p=b.fotograflar.find(isImg)||b.fotograflar[0],u=p&&isImg(p)&&URLC[p]?URLC[p].u:null;
+ return `<div class="card item" onclick="openDetail(${b.id})"><div class="thumb" style="${u?`background-image:url('${u}')`:''}">${u?'':(p?(extOf(p)||'DOSYA').toUpperCase():'—')}</div>
+ <div class="t"><b>${KATI[b.kategori]||''} ${b.kategori==='santiye'&&b.santiyeler?esc(b.santiyeler.ad):KAT[b.kategori]||''}${b.tutar!=null?' · '+fmt(b.tutar)+' ₺':''}</b><div>${TUR[b.tur]} · ${isAdmin()?esc(b.profiles?.display_name||'')+' · ':''}${fdt(b.created_at)}${b.aciklama?' · '+esc(b.aciklama):''}</div></div>
  <span class="badge b-${b.durum}">${DUR[b.durum]}</span></div>`}
 function pHome(){
- const tabs=isAdmin()?`<div class="tabs">${[['yeni','Bekleyen'],['islendi','İşlenen'],['reddedildi','Reddedilen'],['tum','Tümü']].map(([k,l])=>`<button class="${V.filter===k?'on':''}" onclick="V.filter='${k}';refresh()">${l}</button>`).join('')}</div>`:'';
+ const tabs=isAdmin()?`<div class="tabs">${[['yeni','Bekleyen'],['islendi','İşlenen'],['reddedildi','Reddedilen'],['tum','Tümü']].map(([k,l])=>`<button class="${V.filter===k?'on':''}" onclick="V.filter='${k}';refresh()">${l}</button>`).join('')}</div>
+ <div class="row" style="margin-bottom:10px"><select onchange="V.kat=this.value;if(this.value!=='santiye')V.sid='';refresh()"><option value="">Tüm kategoriler</option>${Object.entries(KAT).map(([k,l])=>`<option value="${k}"${V.kat===k?' selected':''}>${l}</option>`).join('')}</select>
+ ${V.kat==='santiye'?`<select onchange="V.sid=this.value;refresh()"><option value="">Tüm şantiyeler</option>${SANT.map(s=>`<option value="${s.id}"${String(V.sid)===String(s.id)?' selected':''}>${esc(s.ad)}</option>`).join('')}</select>`:''}</div>`:'';
  return head(isAdmin()?'Gelen kutusu':'Belge Gönder')+`<button class="big" onclick="startNew()">📷 Yeni belge gönder</button>${tabs}
  <div class="bar" style="margin:0 0 10px"><span class="small mute" style="flex:1">${LIST.length} kayıt</span><button class="ghost sm" onclick="refresh()">↻ Yenile</button></div>
  ${LIST.length?LIST.map(card).join(''):`<div class="empty">${isAdmin()?'Bu listede belge yok.':'Henüz belge göndermediniz.'}</div>`}`}
 
 /* ----- Yeni gönderi ----- */
-function startNew(){NEW={files:[],tur:'fis',tutar:'',tarih:today(),aciklama:''};V.view='new';render();window.scrollTo(0,0)}
-async function addFiles(inp){const fs=[...inp.files];inp.value='';for(const f of fs){if(NEW.files.length>=8){toast('En fazla 8 dosya');break}NEW.files.push({f,url:f.type.startsWith('image/')?URL.createObjectURL(f):null})}render()}
+function startNew(){NEW={files:[],tur:'fis',kategori:'',santiye_id:'',tutar:'',tarih:today(),aciklama:''};V.view='new';render();window.scrollTo(0,0)}
+async function addFiles(inp){const fs=[...inp.files];inp.value='';for(const f of fs){if(NEW.files.length>=8){toast('En fazla 8 dosya');break}if(f.size>20*1024*1024){toast(f.name+': 20 MB sınırını aşıyor');continue}NEW.files.push({f,url:/^image\/(jpeg|png|webp|gif)/.test(f.type)?URL.createObjectURL(f):null})}render()}
 function pNew(){const n=NEW;
  return head('Yeni belge',true)+`<div class="card">
- <div class="photos">${n.files.map((x,i)=>`<div class="ph ${x.url?'':'pdf'}" style="${x.url?`background-image:url('${x.url}')`:''}">${x.url?'':'PDF'}<button class="x" onclick="NEW.files.splice(${i},1);render()">✕</button></div>`).join('')}</div>
- <div class="row" style="margin-bottom:14px"><button onclick="$('#camIn').click()">📷 Fotoğraf çek</button><button class="ghost" onclick="$('#galIn').click()">🖼 Galeriden</button></div>
+ <div class="photos">${n.files.map((x,i)=>`<div class="ph ${x.url?'':'pdf'}" style="${x.url?`background-image:url('${x.url}')`:''}">${x.url?'':`<div style="text-align:center;padding:4px;font-size:11px;word-break:break-all"><b style="font-size:14px">${esc((extOf(x.f.name)||'DOSYA').toUpperCase())}</b><br>${esc(x.f.name.slice(0,24))}</div>`}<button class="x" onclick="NEW.files.splice(${i},1);render()">✕</button></div>`).join('')}</div>
+ <div class="row" style="margin-bottom:14px;gap:8px"><button onclick="$('#camIn').click()">📷 Çek</button><button class="ghost" onclick="$('#galIn').click()">🖼 Galeri</button><button class="ghost" onclick="$('#fileIn').click()">📎 Dosya</button></div>
+ <span class="small mute">Kategori *</span><div class="chips" style="margin-top:6px">${Object.entries(KAT).map(([k,l])=>`<button class="${n.kategori===k?'on':''}" onclick="NEW.kategori='${k}';${k==='cek_senet'?"if(NEW.tur==='fis')NEW.tur='cek';":''}render()">${KATI[k]} ${l}</button>`).join('')}</div>
+ ${n.kategori==='santiye'?`<label><span>Hangi şantiye? *</span><select onchange="NEW.santiye_id=this.value"><option value="">Şantiye seçin…</option>${SANT.filter(s=>s.aktif).map(s=>`<option value="${s.id}"${String(n.santiye_id)===String(s.id)?' selected':''}>${esc(s.ad)}</option>`).join('')}</select>${SANT.filter(s=>s.aktif).length?'':'<small class="mute">Henüz şantiye tanımlı değil; yöneticiye bildirin.</small>'}</label>`:''}
  <span class="small mute">Belge türü</span><div class="chips" style="margin-top:6px">${Object.entries(TUR).map(([k,l])=>`<button class="${n.tur===k?'on':''}" onclick="NEW.tur='${k}';render()">${l}</button>`).join('')}</div>
  <div class="row"><label><span>Tutar (₺, isteğe bağlı)</span><input inputmode="decimal" value="${esc(n.tutar)}" oninput="NEW.tutar=this.value" placeholder="0,00"></label>
  <label><span>Belge tarihi</span><input type="date" value="${n.tarih}" oninput="NEW.tarih=this.value"></label></div>
  <label><span>Açıklama (ne için, kimden?)</span><textarea rows="3" oninput="NEW.aciklama=this.value" placeholder="Örn. Şantiye için çimento, Akdeniz Toptan">${esc(n.aciklama)}</textarea></label>
  <button style="width:100%" id="sendBtn" onclick="sendNew()" ${BUSY?'disabled':''}>${BUSY?'<span class="spin"></span>Gönderiliyor…':'Muhasebeye gönder'}</button></div>`}
 async function shrink(file){
- if(!file.type.startsWith('image/'))return file;
+ if(!/^image\/(jpeg|png|webp|heic|heif)/.test(file.type))return file;
  try{const url=URL.createObjectURL(file);const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url});
   const M=1800;let w=img.naturalWidth,h=img.naturalHeight;const s=Math.min(1,M/Math.max(w,h));w=Math.round(w*s);h=Math.round(h*s);
   const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,w,h);x.drawImage(img,0,0,w,h);URL.revokeObjectURL(url);
   const b=await new Promise(r=>c.toBlob(r,'image/jpeg',0.82));return b||file}catch(_){return file}}
 async function sendNew(){const n=NEW;if(BUSY)return;
- if(!n.files.length)return toast('En az bir fotoğraf ekleyin');
+ if(!n.files.length)return toast('En az bir fotoğraf veya dosya ekleyin');
+ if(!n.kategori)return toast('Kategori seçin');if(n.kategori==='santiye'&&!n.santiye_id)return toast('Şantiyeyi seçin');
  BUSY=true;render();const btn=$('#sendBtn');
  try{const paths=[];
   for(let i=0;i<n.files.length;i++){if(btn)btn.innerHTML=`<span class="spin"></span>Yükleniyor ${i+1}/${n.files.length}`;
-   const b=await shrink(n.files[i].f);const ext=b.type==='application/pdf'?'pdf':(b.type==='image/png'?'png':'jpg');
-   const path=`${ME.id}/${Date.now()}-${i}-${Math.random().toString(36).slice(2,7)}.${ext}`;
-   await api('/storage/v1/object/'+BK+'/'+path,{method:'POST',raw:true,body:b,headers:{'Content-Type':b.type||'image/jpeg'}});paths.push(path)}
-  await rest('belgeler',{method:'POST',body:{tur:n.tur,tutar:num(n.tutar),belge_tarihi:n.tarih||null,aciklama:n.aciklama.trim()||null,fotograflar:paths},headers:{Prefer:'return=minimal'}});
+   const f=n.files[i].f,b=await shrink(f),conv=b!==f;
+   const base=(f.name||'dosya').replace(/\.[^.]*$/,'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ı/g,'i').replace(/[^A-Za-z0-9_-]+/g,'_').slice(0,40)||'dosya';
+   const ext=conv?'jpg':(extOf(f.name)||'bin');
+   const path=`${ME.id}/${Date.now()}-${i}-${Math.random().toString(36).slice(2,7)}-${base}.${ext}`;
+   await api('/storage/v1/object/'+BK+'/'+path,{method:'POST',raw:true,body:b,headers:{'Content-Type':b.type||'application/octet-stream'}});paths.push(path)}
+  await rest('belgeler',{method:'POST',body:{tur:n.tur,kategori:n.kategori,santiye_id:n.kategori==='santiye'?+n.santiye_id:null,tutar:num(n.tutar),belge_tarihi:n.tarih||null,aciklama:n.aciklama.trim()||null,fotograflar:paths},headers:{Prefer:'return=minimal'}});
   n.files.forEach(x=>x.url&&URL.revokeObjectURL(x.url));NEW=null;BUSY=false;toast('Gönderildi ✓');V.view='home';V.filter=isAdmin()?'yeni':V.filter;await refresh()}
  catch(e){BUSY=false;render();toast('Gönderilemedi: '+e.message)}}
 
 /* ----- Detay ----- */
 async function openDetail(id){try{
- const r=await rest('belgeler?select=*,profiles(display_name)&id=eq.'+id);DETAIL=r[0];if(!DETAIL)return toast('Bulunamadı');
+ const r=await rest('belgeler?select=*,profiles(display_name),santiyeler(ad)&id=eq.'+id);DETAIL=r[0];if(!DETAIL)return toast('Bulunamadı');
  await signed(DETAIL.fotograflar);COMMENTS=await rest('yorumlar?select=*,profiles(display_name)&belge_id=eq.'+id+'&order=created_at');
  V.view='detail';V.id=id;render();window.scrollTo(0,0)}catch(e){toast(e.message)}}
 function pDetail(){const b=DETAIL;
- return head(TUR[b.tur],true)+`<div class="card"><div class="photos">${b.fotograflar.map(p=>{const u=URLC[p]&&URLC[p].u,pdf=/\.pdf$/i.test(p);return `<div class="ph ${pdf?'pdf':''}" style="${!pdf&&u?`background-image:url('${u}')`:''}" onclick="view('${p}')">${pdf?'PDF':''}</div>`}).join('')}</div>
+ return head(KAT[b.kategori]||TUR[b.tur],true)+`<div class="card"><div class="photos">${b.fotograflar.filter(isImg).map(p=>{const u=URLC[p]&&URLC[p].u;return `<div class="ph" style="${u?`background-image:url('${u}')`:''}" onclick="view('${p}')"></div>`}).join('')}</div>
+ ${b.fotograflar.filter(p=>!isImg(p)).map(p=>`<div class="item card" style="padding:10px;margin-bottom:8px" onclick="view('${p}')"><div class="thumb" style="width:44px;height:44px">${esc((extOf(p)||'DOSYA').toUpperCase())}</div><div class="t"><b>${esc(fname(p))}</b><div>Açmak için dokunun</div></div></div>`).join('')}
  <div class="kv"><div>Durum</div><div><span class="badge b-${b.durum}">${DUR[b.durum]}</span>${b.islenme_tarihi?` <span class="small mute">${fdt(b.islenme_tarihi)}</span>`:''}</div>
  ${isAdmin()?`<div>Gönderen</div><div>${esc(b.profiles?.display_name)}</div>`:''}
+ <div>Kategori</div><div>${KATI[b.kategori]||''} ${KAT[b.kategori]||''}${b.santiyeler?' — <b>'+esc(b.santiyeler.ad)+'</b>':''}</div><div>Belge türü</div><div>${TUR[b.tur]}</div>
  <div>Gönderim</div><div>${fdt(b.created_at)}</div>${b.belge_tarihi?`<div>Belge tarihi</div><div>${fdate(b.belge_tarihi)}</div>`:''}
  ${b.tutar!=null?`<div>Tutar</div><div><b>${fmt(b.tutar)} ₺</b></div>`:''}${b.aciklama?`<div>Açıklama</div><div>${esc(b.aciklama)}</div>`:''}
  ${b.islem_notu?`<div>Muhasebe notu</div><div>${esc(b.islem_notu)}</div>`:''}</div>
@@ -213,7 +258,7 @@ function pDetail(){const b=DETAIL;
  <h3 style="margin:18px 0 8px">Mesajlar</h3>
  <div>${COMMENTS.map(c=>`<div class="msg ${c.author===ME.id?'me':'they'}">${esc(c.metin)}<small>${esc(c.profiles?.display_name||'')} · ${fdt(c.created_at)}</small></div>`).join('')||'<p class="small mute">Henüz mesaj yok. Soru veya not yazabilirsiniz.</p>'}</div>
  <div class="row" style="margin-top:8px"><input id="cm" placeholder="Mesaj yazın…" onkeydown="if(event.key==='Enter')sendComment()"><button style="flex:0 0 auto" onclick="sendComment()">Gönder</button></div>`}
-function view(p){const u=URLC[p]&&URLC[p].u;if(!u)return;if(/\.pdf$/i.test(p)){window.open(u,'_blank');return}
+function view(p){const u=URLC[p]&&URLC[p].u;if(!u)return;if(!isImg(p)){window.open(u,'_blank');return}
  const v=$('#viewer');v.innerHTML=`<img src="${u}" alt=""><button class="c" onclick="closeViewer()">✕ Kapat</button><a class="o" href="${u}" target="_blank" rel="noopener">Tam boyut aç</a>`;v.classList.remove('hidden')}
 function closeViewer(){const v=$('#viewer');v.classList.add('hidden');v.innerHTML=''}
 async function setStatus(s){let note=DETAIL.islem_notu||null;if(s==='reddedildi'){const n=prompt('Red nedeni (gönderen görür):',note||'');if(n===null)return;note=n||null}
@@ -222,29 +267,52 @@ async function delBelge(){if(!confirm('Bu gönderi silinsin mi?'))return;try{if(
 async function sendComment(){const i=$('#cm'),t=i.value.trim();if(!t)return;i.disabled=true;try{await rest('yorumlar',{method:'POST',body:{belge_id:DETAIL.id,metin:t},headers:{Prefer:'return=minimal'}});await openDetail(DETAIL.id)}catch(e){toast(e.message);i.disabled=false}}
 
 /* ----- Kullanıcılar (yalnızca yönetici) ----- */
-async function loadUsers(){try{USERS=await rest('profiles?select=*&order=created_at')}catch(e){toast(e.message)}render()}
-const genPw=()=>{const a='abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';const r=crypto.getRandomValues(new Uint32Array(10));return [...r].map(x=>a[x%a.length]).join('')};
-function pUsers(){return head('Kullanıcılar')+`<div class="card"><b>Yeni kullanıcı</b><p class="small mute" style="margin:4px 0 10px">Gönderici yalnızca belge gönderebilir ve kendi gönderilerini görür. Muhasebe programına erişimi yoktur.</p>
- <label><span>Ad Soyad</span><input id="nuD"></label><label><span>Kullanıcı adı (küçük harf, örn. ali.yilmaz)</span><input id="nuU" autocapitalize="none" autocorrect="off"></label>
- <label><span>Şifre</span><input id="nuP" value="${genPw()}"></label><button onclick="addUser()">Kullanıcı ekle</button></div>
- ${USERS.map(u=>`<div class="card"><div class="item" style="cursor:default"><div class="t"><b>${esc(u.display_name)}${u.id===ME.id?' (siz)':''}</b><div>${esc(u.username)} · ${u.role==='admin'?'Yönetici':'Gönderici'}${u.active?'':' · <span style="color:var(--bad)">devre dışı</span>'}</div></div></div>
- ${u.id!==ME.id?`<div class="bar"><button class="ghost sm" onclick="resetPw('${u.id}','${esc(u.display_name)}')">Şifre belirle</button><button class="ghost sm" onclick="toggleUser('${u.id}',${!u.active})">${u.active?'Devre dışı bırak':'Etkinleştir'}</button></div>`:''}</div>`).join('')}`}
-async function addUser(){const d=$('#nuD').value.trim(),u=$('#nuU').value.trim().toLowerCase(),p=$('#nuP').value;if(!d||!u)return toast('Ad ve kullanıcı adı girin');
- try{await rest('rpc/admin_kullanici_ekle',{method:'POST',body:{p_username:u,p_display:d,p_password:p,p_role:'gonderici'}});alert(`Kullanıcı eklendi.\n\nKullanıcı adı: ${u}\nŞifre: ${p}\n\nBu bilgileri kişiye iletin.`);await loadUsers()}catch(e){toast(e.message)}}
-async function resetPw(id,name){const p=prompt(name+' için yeni şifre (en az 8 karakter):',genPw());if(!p)return;try{await rest('rpc/admin_sifre_belirle',{method:'POST',body:{p_user:id,p_password:p}});alert('Yeni şifre: '+p)}catch(e){toast(e.message)}}
+async function loadUsers(){try{USERS=await rest('profiles?select=*&order=created_at');SANT=await rest('santiyeler?select=*&order=ad');DAVET=await rest('davetler?select=*&order=created_at.desc')}catch(e){toast(e.message)}render()}
+async function addSant(){const a=$('#nsA').value.trim();if(!a)return;try{await rest('santiyeler',{method:'POST',body:{ad:a,kod:'S-'+Date.now().toString(36)},headers:{Prefer:'return=minimal'}});await loadUsers()}catch(e){toast(e.message)}}
+async function toggleSant(id,ak){try{await rest('santiyeler?id=eq.'+id,{method:'PATCH',body:{aktif:ak},headers:{Prefer:'return=minimal'}});await loadUsers()}catch(e){toast(e.message)}}
+const inviteUrl=k=>BASE+'?davet='+k;
+const fmtCode=k=>k.slice(0,5)+'-'+k.slice(5);
+let DAVET=[];
+function showInvite(name,k){const url=inviteUrl(k);const msg=`Merhaba ${name}, fiş/fatura/çek fotoğraflarını bu uygulamadan göndereceğiz:\n${url}\n\n1) Linki iPhone'da Safari ile aç (WhatsApp içinden açılırsa sağ alttaki pusula/Safari simgesine dokun).\n2) Paylaş ⬆︎ → "Ana Ekrana Ekle" → Ekle.\n3) Ana ekrandaki "Belge Gönder" ikonundan aç. Şifre gerekmez.\n\nKod (gerekirse elle girmek için): ${fmtCode(k)} — tek kullanımlık, 7 gün geçerli.`;
+ const v=$('#viewer');v.style.background='#000c';v.innerHTML=`<div class="card" style="max-width:520px;margin:16px"><b>${esc(name)} için davet</b><p class="small mute">Bu mesajı yalnızca bu kişiye gönderin. Kod bir kez kullanılınca geçersiz olur.</p><p style="font-size:22px;letter-spacing:2px;text-align:center;margin:8px 0"><b>${fmtCode(k)}</b></p><textarea rows="7" readonly style="font-size:13px">${esc(msg)}</textarea>
+ <div class="bar"><button onclick="shareInvite()">Paylaş (WhatsApp vb.)</button><button class="ghost" onclick="copyInvite()">Kopyala</button><button class="ghost" onclick="closeViewer();loadUsers()">Kapat</button></div></div>`;v._msg=msg;v.classList.remove('hidden')}
+async function shareInvite(){const m=$('#viewer')._msg;if(navigator.share){try{await navigator.share({text:m})}catch(_){}}else copyInvite()}
+async function copyInvite(){try{await navigator.clipboard.writeText($('#viewer')._msg);toast('Kopyalandı')}catch(_){toast('Kopyalanamadı; metni seçip kopyalayın')}}
+function pUsers(){const bekleyen=DAVET.filter(d=>!d.kullanildi&&new Date(d.son_tarih)>new Date());
+ return head('Kullanıcılar')+`<div class="card"><b>Yeni kişi davet et</b><p class="small mute" style="margin:4px 0 10px">Kişiye tek kullanımlık bir davet linki gönderilir. Linki açıp uygulamayı ana ekrana ekleyen telefon kalıcı olarak tanınır; şifre yoktur. Kişi yalnızca belge gönderir ve kendi gönderilerini görür.</p>
+ <label><span>Ad Soyad</span><input id="nuD" placeholder="Örn. Ali Yılmaz"></label>
+ <button onclick="addInvite()">Davet oluştur</button></div>
+ ${bekleyen.length?`<div class="card"><b>Kullanılmamış davetler</b>${bekleyen.map(d=>`<div class="item" style="cursor:default;margin-top:8px"><div class="t"><b>${esc(d.ad)}</b><div>${fmtCode(d.kod)} · son gün ${fdate(d.son_tarih)}</div></div><button class="ghost sm" onclick="showInvite('${esc(d.ad)}','${d.kod}')">Göster</button><button class="ghost sm" onclick="delInvite('${d.kod}')">İptal</button></div>`).join('')}</div>`:''}
+ <div class="card"><b>Şantiyeler</b><p class="small mute" style="margin:4px 0 10px">Gönderenler “Şantiye” kategorisinde bu listeden seçer. Muhasebe programında “Gelen Belgeler” açıldığında projeler buraya otomatik aktarılır.</p>
+ ${SANT.map(s=>`<div class="item" style="cursor:default;margin-bottom:8px"><div class="t"><b style="${s.aktif?'':'color:var(--mute);text-decoration:line-through'}">${esc(s.ad)}</b><div>${esc(s.kod)}</div></div><button class="ghost sm" onclick="toggleSant(${s.id},${!s.aktif})">${s.aktif?'Pasif yap':'Aktif yap'}</button></div>`).join('')||'<p class="small mute">Henüz şantiye yok.</p>'}
+ <div class="row"><input id="nsA" placeholder="Yeni şantiye adı"><button style="flex:0 0 auto" onclick="addSant()">Ekle</button></div></div>
+ <h3 style="margin:18px 0 8px">Kayıtlı kişiler</h3>
+ ${USERS.map(u=>`<div class="card"><div class="item" style="cursor:default"><div class="t"><b>${esc(u.display_name)}${u.id===ME.id?' (siz)':''}</b><div>${u.role==='admin'?'Yönetici':'Gönderici'} · ${fdate(u.created_at)}${u.active?'':' · <span style="color:var(--bad)">erişimi kapalı</span>'}</div></div></div>
+ ${u.id!==ME.id?`<div class="bar"><button class="ghost sm" onclick="toggleUser('${u.id}',${!u.active})">${u.active?'Erişimi kapat':'Erişimi aç'}</button></div>`:''}</div>`).join('')}
+ <p class="small mute">Kişi telefon değiştirirse eski kaydın erişimini kapatıp aynı kişi için yeni davet oluşturun.</p>`}
+async function addInvite(){const d=$('#nuD').value.trim();if(!d)return toast('Ad Soyad girin');
+ try{const k=await rest('rpc/davet_olustur',{method:'POST',body:{p_ad:d}});showInvite(d,k)}catch(e){toast(e.message)}}
+async function delInvite(k){if(!confirm('Davet iptal edilsin mi?'))return;try{await rest('davetler?kod=eq.'+k,{method:'DELETE'});await loadUsers()}catch(e){toast(e.message)}}
 async function toggleUser(id,act){try{await rest('profiles?id=eq.'+id,{method:'PATCH',body:{active:act},headers:{Prefer:'return=minimal'}});await loadUsers()}catch(e){toast(e.message)}}
 
 /* ----- Ayarlar ----- */
 function pSettings(){return head('Ayarlar')+`<div class="card"><div class="kv"><div>Ad</div><div>${esc(ME.display_name)}</div><div>Kullanıcı adı</div><div>${esc(ME.username)}</div><div>Yetki</div><div>${isAdmin()?'Yönetici':'Gönderici'}</div></div></div>
- <div class="card"><b>Şifre değiştir</b><label style="margin-top:10px"><span>Yeni şifre (en az 8 karakter)</span><input id="np" type="password" autocomplete="new-password"></label><button onclick="changePw()">Kaydet</button></div>
- <div class="card small mute">Uygulama gibi kullanmak için iPhone'da Safari'de bu sayfayı açın → Paylaş ⬆︎ → <b>Ana Ekrana Ekle</b>.</div>
- <button class="ghost" style="width:100%" onclick="logout()">Çıkış yap</button>`}
+ ${isAdmin()?`<div class="card"><b>Şifre değiştir</b><label style="margin-top:10px"><span>Yeni şifre (en az 8 karakter)</span><input id="np" type="password" autocomplete="new-password"></label><button onclick="changePw()">Kaydet</button></div>`:''}
+ <div class="card small mute">Uygulama gibi kullanmak için iPhone'da Safari'de açın → Paylaş ⬆︎ → <b>Ana Ekrana Ekle</b>.</div>
+ ${isAdmin()?`<button class="ghost" style="width:100%" onclick="logout()">Çıkış yap</button>`:`<div class="card small mute">Bu telefon <b>${esc(ME.display_name)}</b> adına kayıtlı. Telefonu değiştirirseniz yöneticiden yeni davet isteyin.</div>`}`}
 async function changePw(){const p=$('#np').value;if(p.length<8)return toast('En az 8 karakter');try{await api('/auth/v1/user',{method:'PUT',body:{password:p}});toast('Şifre değiştirildi');$('#np').value=''}catch(e){toast(e.message)}}
 
 /* ===== Başlat ===== */
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&ME&&V.view==='home')refresh()});
 if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
-(async()=>{render();if(SES){try{await loadMe();await refresh()}catch(e){toast(e.message);render()}}})();
+(async()=>{
+ if(SES||DEV||(CODE&&(!IS_IOS||STANDALONE)))BOOT='acilis';render();
+ try{
+  if(!SES&&DEV&&!await devLogin())throw new Error('Bu telefonun kaydı geçersiz. Yöneticiden yeni davet isteyin.');
+  if(!SES&&CODE&&(!IS_IOS||STANDALONE)){BOOT='kod';render();await redeem(CODE)}
+  if(SES){await loadMe();BOOT='';await refresh();return}
+ }catch(e){if(SES&&DEV&&await devLogin()){try{await loadMe();BOOT='';await refresh();return}catch(_){}}toast(e.message)}
+ BOOT='';render()})();
 </script>
 </body>
 </html>
